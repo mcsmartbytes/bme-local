@@ -32,6 +32,25 @@ export const users = sqliteTable('users', {
 // ============================================
 // MULTI-ENTITY (from 006_multi_entity.sql)
 // ============================================
+export const bookkeeper_firms = sqliteTable('bookkeeper_firms', {
+  id: text('id').primaryKey(),
+  owner_id: text('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  country: text('country').default('United States'),
+  logo_url: text('logo_url'),
+  is_active: integer('is_active', { mode: 'boolean' }).default(true),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+  updated_at: text('updated_at').default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_firms_owner').on(t.owner_id),
+]);
+
 export const organizations = sqliteTable('organizations', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -39,11 +58,29 @@ export const organizations = sqliteTable('organizations', {
   fiscal_year_start: text('fiscal_year_start').default('january'),
   currency: text('currency').default('USD'),
   logo_url: text('logo_url'),
+  firm_id: text('firm_id').references(() => bookkeeper_firms.id, { onDelete: 'set null' }),
+  industry_id: text('industry_id'),
+  multi_entity: integer('multi_entity', { mode: 'boolean' }).default(false),
+  multi_location: integer('multi_location', { mode: 'boolean' }).default(false),
   created_by: text('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   created_at: text('created_at').default(sql`(datetime('now'))`),
   updated_at: text('updated_at').default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_organizations_created_by').on(t.created_by),
+  index('idx_organizations_firm_id').on(t.firm_id),
+]);
+
+export const firm_clients = sqliteTable('firm_clients', {
+  id: text('id').primaryKey(),
+  firm_id: text('firm_id').notNull().references(() => bookkeeper_firms.id, { onDelete: 'cascade' }),
+  organization_id: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('onboarding'),
+  added_at: text('added_at').default(sql`(datetime('now'))`),
+  notes: text('notes'),
+}, (t) => [
+  uniqueIndex('firm_clients_firm_org_unique').on(t.firm_id, t.organization_id),
+  index('idx_firm_clients_firm_id').on(t.firm_id),
+  index('idx_firm_clients_org_id').on(t.organization_id),
 ]);
 
 export const entities = sqliteTable('entities', {
@@ -868,6 +905,99 @@ export const invoice_late_fees = sqliteTable('invoice_late_fees', {
 }, (t) => [
   index('idx_invoice_late_fees_user_id').on(t.user_id),
   index('idx_invoice_late_fees_invoice_id').on(t.invoice_id),
+]);
+
+// ============================================
+// FIRM WORKFLOW (bookkeeper practice)
+// ============================================
+export const workflow_tasks = sqliteTable('workflow_tasks', {
+  id: text('id').primaryKey(),
+  firm_id: text('firm_id').notNull().references(() => bookkeeper_firms.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description'),
+  client_org_id: text('client_org_id').references(() => organizations.id, { onDelete: 'set null' }),
+  assigned_to: text('assigned_to').references(() => users.id, { onDelete: 'set null' }),
+  assigned_to_name: text('assigned_to_name'),
+  due_date: text('due_date'),
+  priority: text('priority').notNull().default('medium'),
+  status: text('status').notNull().default('todo'),
+  period_year: integer('period_year'),
+  period_month: integer('period_month'),
+  created_by: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  created_by_name: text('created_by_name'),
+  completed_at: text('completed_at'),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+  updated_at: text('updated_at').default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_workflow_tasks_firm_id').on(t.firm_id),
+  index('idx_workflow_tasks_client_org_id').on(t.client_org_id),
+  index('idx_workflow_tasks_status').on(t.status),
+]);
+
+export const task_comments = sqliteTable('task_comments', {
+  id: text('id').primaryKey(),
+  task_id: text('task_id').notNull().references(() => workflow_tasks.id, { onDelete: 'cascade' }),
+  user_id: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  user_name: text('user_name'),
+  body: text('body').notNull(),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_task_comments_task_id').on(t.task_id),
+]);
+
+export const client_documents = sqliteTable('client_documents', {
+  id: text('id').primaryKey(),
+  firm_id: text('firm_id').notNull().references(() => bookkeeper_firms.id, { onDelete: 'cascade' }),
+  client_org_id: text('client_org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  file_name: text('file_name').notNull(),
+  file_path: text('file_path').notNull(),
+  mime_type: text('mime_type'),
+  file_size: integer('file_size'),
+  doc_type: text('doc_type').default('other'),
+  period_year: integer('period_year'),
+  period_month: integer('period_month'),
+  notes: text('notes'),
+  uploader_name: text('uploader_name'),
+  uploaded_by: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_client_documents_firm_id').on(t.firm_id),
+  index('idx_client_documents_client_org_id').on(t.client_org_id),
+]);
+
+export const close_checklists = sqliteTable('close_checklists', {
+  id: text('id').primaryKey(),
+  firm_id: text('firm_id').notNull().references(() => bookkeeper_firms.id, { onDelete: 'cascade' }),
+  client_org_id: text('client_org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  period_year: integer('period_year').notNull(),
+  period_month: integer('period_month').notNull(),
+  industry_id: text('industry_id').default('general'),
+  items: text('items').notNull().default('[]'),
+  signed_off_by: text('signed_off_by').references(() => users.id, { onDelete: 'set null' }),
+  signer_name: text('signer_name'),
+  signed_off_at: text('signed_off_at'),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+  updated_at: text('updated_at').default(sql`(datetime('now'))`),
+}, (t) => [
+  uniqueIndex('close_checklists_period_unique').on(t.firm_id, t.client_org_id, t.period_year, t.period_month),
+  index('idx_close_checklists_firm_id').on(t.firm_id),
+]);
+
+export const transaction_alerts = sqliteTable('transaction_alerts', {
+  id: text('id').primaryKey(),
+  user_id: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  entity_id: text('entity_id').references(() => entities.id, { onDelete: 'set null' }),
+  alert_type: text('alert_type').notNull(),
+  severity: text('severity').notNull().default('warning'),
+  headline: text('headline').notNull(),
+  body: text('body').notNull(),
+  ref_type: text('ref_type'),
+  ref_id: text('ref_id'),
+  status: text('status').notNull().default('open'),
+  created_at: text('created_at').default(sql`(datetime('now'))`),
+}, (t) => [
+  index('idx_transaction_alerts_user_id').on(t.user_id),
+  index('idx_transaction_alerts_status').on(t.status),
 ]);
 
 // ============================================

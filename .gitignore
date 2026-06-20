@@ -39,6 +39,7 @@ next-env.d.ts
 # local db
 local.db
 *.db
+data/documents/
 
 # drizzle
 /drizzle
