@@ -5,9 +5,8 @@
 
 const RESTART = process.env.BME_RESTART === '1' || process.argv.includes('--restart');
 
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
-import { join } from 'path';
 
 const MODELS_PATH = process.env.MODELS_PATH
   || (process.platform === 'win32' ? 'C:\\Users\\Michelle\\Models' : '/mnt/c/Users/Michelle/Models');
@@ -86,6 +85,25 @@ async function waitForHealth(timeoutMs = 60000) {
   return false;
 }
 
+function openBrowser(url) {
+  if (process.env.BME_NO_OPEN === '1') return;
+  try {
+    if (process.platform === 'win32') {
+      execSync(`start "" "${url}"`, { stdio: 'ignore', shell: true });
+    } else if (process.env.WSL_DISTRO_NAME) {
+      // WSL2 → open in Windows default browser
+      execSync(`cmd.exe /c start "" "${url}"`, { stdio: 'ignore' });
+    } else if (process.platform === 'darwin') {
+      execSync(`open "${url}"`, { stdio: 'ignore' });
+    } else {
+      execSync(`xdg-open "${url}"`, { stdio: 'ignore' });
+    }
+    console.log('Opened browser:', url);
+  } catch {
+    console.log('Could not auto-open browser. Open manually:', url);
+  }
+}
+
 async function tryInit() {
   try {
     const res = await fetch(`${BASE}/api/db/init`);
@@ -122,11 +140,13 @@ child.on('exit', (code) => {
 
   await tryInit();
 
+  openBrowser(BASE);
+
   console.log(`
 Ready to connect:
-- Open ${BASE}
+- UI:  ${BASE}
 - Login: bookkeeper@local / (your ADMIN_PASSWORD or default change-me-now)
-- Run Intelligence Analyze from the home page (requires login)
-- DB file: ./data/local.db
+- Test: click "Run Intelligence Analyze" on the home page (requires login)
+- DB:   ./data/local.db
 `);
 })();
