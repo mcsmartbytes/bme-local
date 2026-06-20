@@ -3,7 +3,7 @@
 // Usage: npm run run:local
 
 import { spawn } from 'child_process';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 
 const MODELS_PATH = process.env.MODELS_PATH
@@ -23,6 +23,45 @@ try {
 if (!existsSync('./data/local.db') && !process.env.TURSO_DATABASE_URL) {
   console.log('No data/local.db yet — will be created on first DB use.');
 }
+
+const LOCK_PATH = '.next/dev/lock';
+
+function isProcessAlive(pid) {
+  if (!pid || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearStaleDevLock() {
+  if (!existsSync(LOCK_PATH)) return;
+
+  let info;
+  try {
+    info = JSON.parse(readFileSync(LOCK_PATH, 'utf8'));
+  } catch {
+    try { unlinkSync(LOCK_PATH); } catch {}
+    return;
+  }
+
+  if (!isProcessAlive(info?.pid)) {
+    try { unlinkSync(LOCK_PATH); } catch {}
+    console.log('Removed stale dev lock (previous server not running).');
+    return;
+  }
+
+  console.log(`Dev server already running:
+- Local: ${info.appUrl || `http://localhost:${info.port || PORT}`}
+- PID:   ${info.pid}
+Run: kill ${info.pid}
+Or open the URL above — no need to start again.`);
+  process.exit(0);
+}
+
+clearStaleDevLock();
 
 async function waitForHealth(timeoutMs = 60000) {
   const start = Date.now();
@@ -46,14 +85,18 @@ async function tryInit() {
   }
 }
 
-const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], {
+const child = spawn(
+  process.platform === 'win32' ? 'npm.cmd' : 'npm',
+  ['run', 'dev', '--', '--port', PORT],
+  {
   stdio: 'inherit',
-  env: {
-    ...process.env,
-    MODELS_PATH,
-    PORT,
+    env: {
+      ...process.env,
+      MODELS_PATH,
+      PORT,
+    },
   },
-});
+);
 
 child.on('exit', (code) => {
   console.log('Server exited with code', code);
