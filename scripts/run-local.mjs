@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Easy wrapper for "run" + "connect" — books-made-easy-local
 // Usage: npm run run:local
+// Restart: BME_RESTART=1 npm run run:local
+
+const RESTART = process.env.BME_RESTART === '1' || process.argv.includes('--restart');
 
 import { spawn } from 'child_process';
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
@@ -53,10 +56,18 @@ function clearStaleDevLock() {
     return;
   }
 
+  if (RESTART) {
+    console.log(`Stopping existing dev server (PID ${info.pid})...`);
+    try { process.kill(info.pid, 'SIGTERM'); } catch {}
+    try { unlinkSync(LOCK_PATH); } catch {}
+    return;
+  }
+
   console.log(`Dev server already running:
 - Local: ${info.appUrl || `http://localhost:${info.port || PORT}`}
 - PID:   ${info.pid}
-Run: kill ${info.pid}
+To restart: kill ${info.pid} && npm run run:local
+Or:         BME_RESTART=1 npm run run:local
 Or open the URL above — no need to start again.`);
   process.exit(0);
 }
