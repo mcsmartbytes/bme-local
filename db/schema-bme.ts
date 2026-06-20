@@ -437,10 +437,12 @@ export const payments = sqliteTable('payments', {
   payment_method: text('payment_method').notNull().default('bank_transfer'),
   reference: text('reference'),
   notes: text('notes'),
+  deposit_id: text('deposit_id'),
   created_at: text('created_at').default(sql`(datetime('now'))`),
   updated_at: text('updated_at').default(sql`(datetime('now'))`),
 }, (t) => [
   index('idx_payments_user_id').on(t.user_id),
+  index('idx_payments_deposit_id').on(t.deposit_id),
   index('idx_payments_invoice_id').on(t.invoice_id),
   index('idx_payments_bill_id').on(t.bill_id),
   index('idx_payments_type').on(t.type),
@@ -500,7 +502,7 @@ export const payments_made = sqliteTable('payments_made', {
 export const deposit_items = sqliteTable('deposit_items', {
   id: text('id').primaryKey(),
   deposit_id: text('deposit_id').notNull().references(() => deposits.id, { onDelete: 'cascade' }),
-  payment_id: text('payment_id').references(() => payments_received.id, { onDelete: 'set null' }),
+  payment_id: text('payment_id').references(() => payments.id, { onDelete: 'set null' }),
   description: text('description'),
   amount: real('amount').notNull().default(0),
   sort_order: integer('sort_order').default(0),
