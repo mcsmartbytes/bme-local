@@ -44,7 +44,7 @@ export default function BillDetailPage() {
   const params = useParams();
   const billId = params.id as string;
   const [bill, setBill] = useState<Bill | null>(null);
-  const [payments] = useState<Payment[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -53,10 +53,17 @@ export default function BillDetailPage() {
 
   const loadBill = async () => {
     try {
-      const res = await apiFetch(`/api/bills?id=${billId}`);
-      const json = await res.json();
-      if (res.ok && json.success) {
+      const [billRes, paymentsRes] = await Promise.all([
+        apiFetch(`/api/bills?id=${billId}`),
+        apiFetch(`/api/payments?bill_id=${billId}`),
+      ]);
+      const json = await billRes.json();
+      const paymentsJson = await paymentsRes.json();
+      if (billRes.ok && json.success) {
         setBill(json.data);
+      }
+      if (paymentsRes.ok && paymentsJson.success) {
+        setPayments(paymentsJson.data || []);
       }
     } catch (error) {
       console.error('Error loading bill:', error);

@@ -46,7 +46,7 @@ export default function InvoiceDetailPage() {
   const params = useParams();
   const invoiceId = params.id as string;
   const [invoice, setInvoice] = useState<Invoice | null>(null);
-  const [payments] = useState<Payment[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -56,15 +56,22 @@ export default function InvoiceDetailPage() {
 
   const loadInvoice = async () => {
     try {
-      const res = await apiFetch(`/api/invoices?id=${invoiceId}`);
-      const json = await res.json();
-      if (res.ok && json.success) {
+      const [invoiceRes, paymentsRes] = await Promise.all([
+        apiFetch(`/api/invoices?id=${invoiceId}`),
+        apiFetch(`/api/payments?invoice_id=${invoiceId}`),
+      ]);
+      const json = await invoiceRes.json();
+      const paymentsJson = await paymentsRes.json();
+      if (invoiceRes.ok && json.success) {
         const inv = json.data as Invoice;
         const today = new Date().toISOString().split('T')[0];
         if (inv.status === 'sent' && inv.due_date < today) {
           inv.status = 'overdue';
         }
         setInvoice(inv);
+      }
+      if (paymentsRes.ok && paymentsJson.success) {
+        setPayments(paymentsJson.data || []);
       }
     } catch (error) {
       console.error('Error loading invoice:', error);
